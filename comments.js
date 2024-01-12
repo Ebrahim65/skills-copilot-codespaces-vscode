@@ -1,74 +1,103 @@
-//Create Web Server
+//Create web server
 var express = require('express');
 var app = express();
-var bodyParser = require('body-parser');
-var fs = require('fs');
 var path = require('path');
 
-app.use(bodyParser.urlencoded({extended: false}));
-app.use(bodyParser.json());
+//Connect to database
+var mongoose = require('mongoose');
+mongoose.connect('mongodb://localhost/MyBlog');
 
-//Create Server
-var server = app.listen(8081, function(){
-    var host = server.address().address
-    var port = server.address().port
-    console.log('Listening at http://%s:%s', host, port)
+//Create schema for comments
+var Schema = mongoose.Schema;
+var commentSchema = new Schema({
+    name: String,
+    comment: String
+});
+var Comment = mongoose.model('Comment', commentSchema);
+
+//Create route for comments
+app.get('/comments', function(req, res){
+    res.sendFile(path.join(__dirname, 'comments.html'));
 });
 
-//Connect to MongoDB
-var MongoClient = require('mongodb').MongoClient;
-var url = "mongodb://localhost:27017/";
+//Create route for comments
+app.get('/comments', function(req, res){
+    res.sendFile(path.join(__dirname, 'comments.html'));
+});
 
-//Create Database
-MongoClient.connect(url, function(err, db) {
-    if (err) throw err;
-    var dbo = db.db("mydb");
-    //Create Collection
-    dbo.createCollection("comments", function(err, res) {
-        if (err) throw err;
-        console.log("Collection created!");
-        db.close();
+//Create route for getting comments
+app.get('/api/comments', function(req, res){
+    Comment.find(function(err, comments){
+        if(err) {
+            res.send(err);
+        }
+        res.json(comments);
     });
-    //Insert Document
-    dbo.collection("comments").insertOne({name: "John", comment: "Hello"}, function(err, res) {
-        if (err) throw err;
-        console.log("1 document inserted");
-        db.close();
-    });
 });
 
-//Create GET request
-app.get('/comments', function(req, res) {
-    res.sendFile(path.join(__dirname + '/comments.html'));
-});
-
-//Create POST request
-app.post('/comments', function(req, res) {
-    var name = req.body.name;
-    var comment = req.body.comment;
-    var newComment = {name: name, comment: comment};
-    MongoClient.connect(url, function(err, db) {
-        if (err) throw err;
-        var dbo = db.db("mydb");
-        dbo.collection("comments").insertOne(newComment, function(err, res) {
-            if (err) throw err;
-            console.log("1 document inserted");
-            db.close();
+//Create route for posting comments
+app.post('/api/comments', function(req, res){
+    Comment.create({
+        name: req.body.name,
+        comment: req.body.comment,
+        done: false
+    }, function(err, comment){
+        if(err) {
+            res.send(err);
+        }
+        Comment.find(function(err, comments){
+            if(err){
+                res.send(err);
+            }
+            res.json(comments);
         });
     });
-    res.redirect('/comments');
 });
 
-//Create DELETE request
-app.delete('/comments', function(req, res) {
-    var name = req.body.name;
-    var comment = req.body.comment;
-    var deleteComment = {name: name, comment: comment};
-    MongoClient.connect(url, function(err, db) {
-        if (err) throw err; // Fix: Add expression after throw statement
-        var dbo = db.db("mydb");
-        dbo.collection("comments").deleteOne(deleteComment, function(err) { // Fix: Remove unused 'obj' parameter
-            if (err) throw err; // Fix: Add expression after throw statement
+//Create route for deleting comments
+app.delete('/api/comments/:comment_id', function(req, res){
+    Comment.remove({
+        _id: req.params.comment_id
+    }, function(err, comment){
+        if(err){
+            res.send(err);
+        }
+        Comment.find(function(err, comments){
+            if(err){
+                res.send(err);
+            }
+            res.json(comments);
         });
     });
+});
+
+//Create route for editing comments
+app.get('/api/comments/:comment_id', function(req, res){
+    Comment.findOne({
+        _id: req.params.comment_id
+    }, function(err, comment){
+        if(err){
+            res.send(err);
+        }
+        res.json(comment);
+    });
+});
+
+//Create route for updating comments
+app.put('/api/comments/:comment_id', function(req, res){
+    Comment.findOne({
+        _id: req.params.comment_id
+    }, function(err, comment){
+        if(err){
+            res.send(err);
+        }
+        comment.name = req.body.name;
+        comment.comment = req.body.comment;
+        comment.save(function(err, comment){
+            if(err){
+                res.send(err);
+            }
+            res.json(comment);
+        });
+    }); // Add closing parenthesis here
 });
